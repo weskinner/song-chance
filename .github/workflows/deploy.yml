@@ -1,0 +1,81 @@
+# GitHub Pages deployment workflow
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+      
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+      
+    - name: Setup Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup Clojure
+      uses: DeLaGuardo/setup-clojure@12.5
+      with:
+        cli: latest
+        
+    - name: Install dependencies
+      run: clojure -P
+      
+    - name: Setup database
+      run: |
+        # Start PostgreSQL
+        sudo systemctl start postgresql
+        sudo -u postgres createdb phish_songs
+        sudo -u postgres psql -c "CREATE USER github_user WITH PASSWORD 'github_password';"
+        sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE phish_songs TO github_user;"
+        
+    - name: Create config file
+      run: |
+        cat > config.edn << EOF
+        {:phish-net {:api-key "${{ secrets.PHISH_NET_API_KEY }}"}
+         :database {:host "localhost"
+                    :port 5432
+                    :dbname "phish_songs"
+                    :user "github_user"
+                    :password "github_password"}}
+        EOF
+        
+    - name: Fetch and load data
+      run: |
+        clojure -M:run-m demo
+        clojure -M:run-m load-songs
+        
+    - name: Generate static site
+      run: |
+        clojure -M:run-m generate-site
+        
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./site
+        
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4

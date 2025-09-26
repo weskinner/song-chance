@@ -1,0 +1,9 @@
+;; Configuration file for song-chance
+;; Copy this file to config.edn and update with your settings
+
+{:phish-net {:api-key "YOUR_PHISH_NET_API_KEY_HERE"}
+ :database {:host "localhost"
+            :port 5432
+            :dbname "phish_songs"
+            :user "your_username"
+            :password "your_password"}}
